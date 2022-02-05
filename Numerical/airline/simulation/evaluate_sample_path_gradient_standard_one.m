@@ -1,0 +1,106 @@
+function [r,g, demand] = evaluate_sample_path_gradient_standard_one(numClass,numFlight,numChannel,numEpoch,rate,v,w,v0,fare,flight)
+    demand = zeros(numClass,numFlight);
+    num = 1e4;
+    R = zeros(num+1,1); % revenue
+    numProduct = numClass*numFlight;
+    % seq = zeros(num+1,2); % product chosen [j f]
+    %pRpx = zeros(numFlight,num+1); % partial R partial x, marginal value of inventory
+    pRpb = zeros(numProduct,num+1); % parial R partial b, marginal value of control
+    pRps = zeros(numProduct,num+1); % parial R partial s, marginal value of sales
+    % x = sparse(zeros(numFlight,num+1)); % inventory
+    u = zeros(numClass,numFlight,num+1); % accepted request
+    %pupx = zeros(numFlight,numProduct,num+1); % partial u partial x
+    pupb = zeros(numProduct,numProduct,num+1); % partial u partial b
+    pups = zeros(numProduct,numProduct,num+1); % partial u partial s
+    % forward
+    tau = 0;
+    for t=1:numEpoch
+        seqArrival = generate_multichannel_arrival(numChannel,rate(:,t),1.0);
+        v_ct = v(:,:,:,t);
+        v_ct = reshape(v_ct,numClass*numFlight,numChannel);
+        w_ct = w(:,:,:,t);
+        w_ct = reshape(w_ct,numClass*numFlight,numChannel);
+        for n=1:size(seqArrival,1)
+            c = seqArrival(n,2);
+            % seed = randi(10^9); 
+            % pseudo flights
+            q = 1.0;
+            [avail,spike] = get_avail_spike(numFlight,numClass,flight,c,t);
+            vtemp = v_ct(:,c); vtemp(logical(spike)) = w_ct(logical(spike),c);
+            p=choose_product(numFlight*numClass,v0(c,t),vtemp,avail);
+            if(p > 0)
+                I = [];
+                tau = tau + 1;
+                demand(p) = demand(p) + q;
+%             end
+            while(q > 1e-9)
+                if(p > 0)
+                    I = [I,p];
+                    [f,j] = find_flight_product(p,numFlight,numClass);
+                    [u(j,f,tau), ind1, ind2] = put_pseudo_booking(flight(f),j,q);
+                    q = q - u(j,f,tau);
+                    if (ind2 == 1)
+                        for ii=I(1:end-1)
+                            % [ff,jj] = find_flight_product(ii,numFlight,numClass);
+                            %pupx(:,j+(f-1)*numClass,tau) = pupx(:,j+(f-1)*numClass,tau) - pupx(:,jj+(ff-1)*numClass,tau);
+                            pupb(:,p,tau) = pupb(:,p,tau) - pupb(:,ii,tau);
+                            pups(:,p,tau) = pups(:,p,tau) - pups(:,ii,tau);
+                        end
+                        break;
+                     elseif (ind2 == 2)
+                        %pupx(f,j,f,tau) = 1;
+                        pups((1:numClass)+(f-1)*numClass,p,tau) = -1;
+                        for ii=I(1:end-1)
+                            [ff,jj] = find_flight_product(ii,numFlight,numClass);
+                            if(f==ff)
+                                %pupx(:,j+(f-1)*numClass,tau) = pupx(:,j+(f-1)*numClass,tau) - pupx(:,jj+(ff-1)*numClass,tau);
+                                pupb(:,p,tau) = pupb(:,p,tau) - pupb(:,ii,tau);
+                                pups(:,p,tau) = pups(:,p,tau) - pups(:,ii,tau);
+                            end
+                        end
+                    elseif (ind1 == 2)
+                        if(j~=1)
+                            pupb(p,p,tau) = 1;
+                        end
+                        pups((j:numClass)+(f-1)*numClass,p,tau) = -1;
+                        for ii=I(1:end-1)
+                            [ff,jj] = find_flight_product(ii,numFlight,numClass);
+                            if(f==ff && jj>j)
+                                %pupx(:,j+(f-1)*numClass,tau) = pupx(:,j+(f-1)*numClass,tau) - pupx(:,jj+(ff-1)*numClass,tau);
+                                pupb(:,p,tau) = pupb(:,p,tau) - pupb(:,ii,tau);
+                                pups(:,p,tau) = pups(:,p,tau) - pups(:,ii,tau);
+                            end
+                        end
+                    end
+                else
+                    break;
+                end
+                [avail,spike] = get_avail_spike(numFlight,numClass,flight,c,t);
+                vtemp = v_ct(:,c); vtemp(logical(spike)) = w_ct(logical(spike),c);
+                p=choose_product(numFlight*numClass,v0(c,t),vtemp,avail);
+            end
+            end
+        end
+    end
+    % backward
+    % price1 = repmat(fare',numFlight,numFlight);
+    price2 = repmat(fare',numProduct,numFlight);
+    for t=tau:-1:1
+        R(t) = sum(u(:,:,t),2)'*fare+R(t+1);
+%         temp=repmat(pRpx(:,t+1)',numClass,1);
+%         temp=temp(:);
+%         pRpx(:,t) = sum(price1.*pupx(:,:,t),2)...
+%                     + pRpx(:,t+1)...
+%                     - sum(pupx(:,:,t).*repmat(temp',numFlight,1),2)...
+%                     + sum(pupx(:,:,t).*repmat(pRps(:,t+1)',numFlight,1),2);
+        pRpb(:,t) = sum(price2.*pupb(:,:,t),2)...
+                    + pRpb(:,t+1)...
+                    + sum(pupb(:,:,t).*repmat(pRps(:,t+1)',numProduct,1),2);
+        pRps(:,t) = sum(price2.*pups(:,:,t),2)...
+                    + pRps(:,t+1)...
+                    + sum(pups(:,:,t).*repmat(pRps(:,t+1)',numProduct,1),2);
+    end
+    temp = reshape(pRpb(:,1),numClass,numFlight);
+    g = temp(2:end,:);
+    r = R(1); 
+end
