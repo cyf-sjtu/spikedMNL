@@ -10,12 +10,12 @@ gc()
 skip_header = 0
 
 Sys.setlocale("LC_TIME", "C")
-setwd("C:/Code/MUProject/Estimation")
+setwd("...")
 
 # market
 orig_selected = "ORG"
 dest_selected = "DST"
-year_selected = 2019
+year_selected = 2017
 data_selected = "MON"
 
 for(month_iter in seq(1,12)){ 
@@ -56,11 +56,11 @@ if(!skip_header){
   # model specification
   enable_Y_cabin_only = 1
   enable_OA = 0
-  enable_price_combo = 1 # e.g., DtD x channel 
-  add_DtD_to_price_combo = 1
+  enable_price_combo = 0 # e.g., DtD x channel 
+  add_DtD_to_price_combo = 0
   add_bookhour_to_price_combo = 0
   add_bookday_to_price_combo = 0
-  add_channel_to_price_combo = 1
+  add_channel_to_price_combo = 0
   enable_refundable_combo = 0 # e.g., carrier x channel
   add_carrier_to_refundable_combo = 0
   add_channel_to_refundable_combo = 0
@@ -220,7 +220,7 @@ rf.x.names = c("Tkt_Price","Change_Fee","Mileage_Gain",
 rf.formula = as.formula(paste0("Booked_Itin~",paste(rf.x.names,collapse = "+")))
 rf.x.names = c("Booked_Itin",rf.x.names)
 ptm <- proc.time()
-rf.model <- wsrf(rf.formula,data = data.training[,..rf.x.names],ntree=200)
+rf.model <- wsrf(rf.formula,data = data.training[,..rf.x.names],ntree=500)
 elapsed_time = proc.time() - ptm
 show(elapsed_time[3])
 rf.model.predict <- predict(rf.model,data.testing[,..rf.x.names],type="waprob");
