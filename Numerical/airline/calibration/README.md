@@ -10,4 +10,4 @@ define_price_col.R genenerates auxiliary price columns to incorporate multiple c
 
 load_subclass_mapping.R loads auxiliary info.
 
-The data folder contains one year's airline booking data for Monday flights in a busy market. The data gives the choice set and the final choice by each customer.
+The data folder contains one year's airline booking data for Monday flights in a busy market. The data gives the choice set and the final choice by each customer. The data and the code calibrates choice models without much feature engineering. However, 2-CV.R contains code to handle more complex settings considering booking channels, days to departure, booking time, etc. You need to populate price columns in the data accordingly.
